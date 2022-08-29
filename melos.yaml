@@ -1,0 +1,11 @@
+name: your_story_wizard
+
+packages:
+  - /**
+
+ignore:
+  - .fvm/**
+  - .dart_tool/**
+
+scripts:
+  format: melos exec "flutter format ."
