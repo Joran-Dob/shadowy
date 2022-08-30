@@ -55,19 +55,31 @@ class _Shadowy extends StatelessWidget {
                 ],
               ),
               Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   for (final item in items.where((element) => !element.correct))
                     Flexible(
                       child: Draggable<ShadowyItem>(
                         data: item,
-                        feedback: item.image,
+                        feedback: Image(
+                          image: item.image.image,
+                          width: 120.0,
+                          height: 120.0,
+                        ),
                         childWhenDragging: Container(),
-                        child: item.image,
+                        child: Image(
+                          image: item.image.image,
+                          width: 120.0,
+                          height: 120.0,
+                        ),
                       ),
                     ),
                 ],
               ),
             ],
+          ),
+          loading: () => const Center(
+            child: CircularProgressIndicator(),
           ),
           orElse: SizedBox.new,
         );

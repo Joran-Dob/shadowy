@@ -1,3 +1,4 @@
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:bloc/bloc.dart';
@@ -27,32 +28,36 @@ class ShadowyCubit extends Cubit<ShadowyState> {
   List<ShadowyItem> _shadowItems = [];
   List<ShadowyItem> _items = [];
 
-  void _init() {
+  Future<void> _init() async {
     emit(ShadowyState.loading());
-    _items = _images.entries.map((entry) {
-      return ShadowyItem(
-        id: entry.key,
-        image: material.Image.memory(entry.value),
-        shadowImage: grayscaleAlpha(entry.value),
+    List<Future<material.Image>> _shadowImageItemFutures = [];
+    _items = [];
+    for (final entry in _images.entries) {
+      final shadowImageFuture = _createImageSilhouette(
+        entry.value,
       );
-    }).toList();
+      _shadowImageItemFutures.add(shadowImageFuture);
+    }
+    final shadowImageItems = await Future.wait(_shadowImageItemFutures);
+
+    var index = 0;
+    for (final element in _images.entries) {
+      _items.add(
+        ShadowyItem(
+          id: element.key,
+          image: material.Image.memory(element.value),
+          shadowImage: shadowImageItems[index],
+          correct: false,
+        ),
+      );
+      index++;
+    }
+
     _shadowItems = _items.where((element) => !element.correct).toList()..shuffle();
     emit(
       ShadowyState.loaded(
         items: _items,
         shadowItems: _shadowItems,
-      ),
-    );
-  }
-
-  material.Image grayscaleAlpha(Uint8List values) {
-    final convertedImage = decodeImage(values)!;
-    convertedImage.channels = Channels.rgba;
-    return material.Image.memory(
-      Uint8List.fromList(
-        encodePng(
-          adjustColor(convertedImage, contrast: 1.0, brightness: 0.0, saturation: 0.0),
-        ),
       ),
     );
   }
@@ -79,4 +84,28 @@ class ShadowyCubit extends Cubit<ShadowyState> {
       ),
     );
   }
+}
+
+Future<material.Image> _createImageSilhouette(Uint8List image) async {
+  final p = ReceivePort();
+  await Isolate.spawn(imageSilhouetteIsolate, [p.sendPort, image]);
+  return await p.first as material.Image;
+}
+
+void imageSilhouetteIsolate(List<dynamic> args) {
+  final responsePort = args[0] as SendPort;
+  final image = args[1] as Uint8List;
+  final convertedImage = decodeImage(image)!;
+  convertedImage.channels = Channels.rgba;
+
+  Isolate.exit(
+    responsePort,
+    material.Image.memory(
+      Uint8List.fromList(
+        encodePng(
+          adjustColor(convertedImage, contrast: 1.0, brightness: 0.0, saturation: 0.0),
+        ),
+      ),
+    ),
+  );
 }
